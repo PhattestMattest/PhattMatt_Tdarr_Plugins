@@ -1,12 +1,12 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.8',
+  Name: 'Phatt Matt: Stream Order Match V1.9',
   Type: 'Filter',
   Operation: 'Filter',
   Description:
-    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Includes stream log summary. Tdarr V2 compatible.',
-  Version: '1.8',
+    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Designed for runClassicFilterPlugin routing. Includes stream summary log.',
+  Version: '1.9',
   Tags: 'pre-processing,filter,ffprobe,audio order,language order',
   Inputs: [
     {
@@ -31,7 +31,6 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       preset: '',
       container: '',
       infoLog: `No ffProbeData object found for file: ${file.file}`,
-      output: 2,
     };
   }
 
@@ -41,7 +40,6 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       preset: '',
       container: '',
       infoLog: `ffProbeData.streams is missing or empty for file: ${file.file}`,
-      output: 2,
     };
   }
 
@@ -87,7 +85,6 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       preset: '',
       container: '',
       infoLog: `FAIL: Stream group order invalid. Found order: ${typeOrder.join(',')} | ${streamSummary}`,
-      output: 2,
     };
   }
 
@@ -123,16 +120,14 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       preset: '',
       container: '',
       infoLog: `FAIL: Audio stream order mismatch. Actual: [${actualAudioOrder.join(' ')}] Expected: [${expectedAudioOrderStrings.join(' ')}] | ${streamSummary}`,
-      output: 2,
     };
   }
 
   return {
-    processFile: false,
+    processFile: true, // ✅ This tells runClassicFilterPlugin to use Output 1 (left)
     preset: '',
     container: '',
     infoLog: `PASS: Stream order valid. ${streamSummary}`,
-    output: 1,
   };
 };
 
