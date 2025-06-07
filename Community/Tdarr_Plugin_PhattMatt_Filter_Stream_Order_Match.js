@@ -1,12 +1,12 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.5',
+  Name: 'Phatt Matt: Stream Order Match V1.6',
   Type: 'Filter',
   Operation: 'Filter',
   Description:
-    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Routes to Output 1 if correct, Output 2 if not. Includes enhanced FFprobe logging.',
-  Version: '1.5',
+    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Routes to Output 1 if correct, Output 2 if not. Compatible with Tdarr V2 format.',
+  Version: '1.6',
   Tags: 'pre-processing,debug,ffprobe,filter',
   Inputs: [
     {
@@ -18,13 +18,15 @@ const details = () => ({
   ],
 });
 
-const plugin = ({ ffprobeData, inputs, file }) => {
+const plugin = (file, librarySettings, inputs, otherArguments) => {
+  const ffprobeData = file.ffProbeData;
+
   if (!ffprobeData) {
     return {
       processFile: false,
       preset: '',
       container: '',
-      infoLog: `No ffprobeData object found for file: ${file}`,
+      infoLog: `No ffProbeData object found for file: ${file.file}`,
       output: 2,
     };
   }
@@ -34,7 +36,7 @@ const plugin = ({ ffprobeData, inputs, file }) => {
       processFile: false,
       preset: '',
       container: '',
-      infoLog: `ffprobeData.streams is missing or empty for file: ${file}`,
+      infoLog: `ffProbeData.streams is missing or empty for file: ${file.file}`,
       output: 2,
     };
   }
@@ -130,4 +132,7 @@ const plugin = ({ ffprobeData, inputs, file }) => {
   };
 };
 
-module.exports = { plugin, details };
+module.exports = {
+  plugin,
+  details,
+};
