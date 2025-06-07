@@ -1,12 +1,12 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.6',
+  Name: 'Phatt Matt: Stream Order Match V1.7',
   Type: 'Filter',
   Operation: 'Filter',
   Description:
-    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Routes to Output 1 if correct, Output 2 if not. Compatible with Tdarr V2 format.',
-  Version: '1.6',
+    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Tdarr V2 compatible. Includes input fallback and logging.',
+  Version: '1.7',
   Tags: 'pre-processing,debug,ffprobe,filter',
   Inputs: [
     {
@@ -19,6 +19,9 @@ const details = () => ({
 });
 
 const plugin = (file, librarySettings, inputs, otherArguments) => {
+  const lib = require('../methods/lib')(); 
+  inputs = lib.loadDefaultValues(inputs, details);
+
   const ffprobeData = file.ffProbeData;
 
   if (!ffprobeData) {
