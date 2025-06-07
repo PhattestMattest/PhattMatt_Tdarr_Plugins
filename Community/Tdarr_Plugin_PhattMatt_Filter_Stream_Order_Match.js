@@ -1,11 +1,11 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.1',
+  Name: 'Phatt Matt: Stream Order Match V1.2',
   Type: 'Video',
   Operation: 'Filter',
-  Description: `Checks if stream order matches user-defined preferences (languages, codecs, channels, streamTypes), ignoring values that are not present in the file.`,
-  Version: '1.1',
+  Description: `Checks if stream order matches user-defined preferences (languages, codecs, channels, streamTypes), ignoring values not present in the file. Logs stream info before and after sorting for debugging.`,
+  Version: '1.2',
   Tags: 'filter',
   Inputs: [
     {
@@ -78,7 +78,18 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   let { streams } = JSON.parse(JSON.stringify(file.ffProbeData));
   streams.forEach((s, i) => s.typeIndex = i);
 
-  const originalStreams = JSON.stringify(streams);
+  const logStreams = (title, streamList) => {
+    response.infoLog += `\n[${title}]\n`;
+    streamList.forEach((s, idx) => {
+      const lang = s.tags?.language || '';
+      const chan = s.channels || '';
+      const logLine = `Index ${idx}: type=${s.codec_type} codec=${s.codec_name} channels=${chan} language=${lang}`;
+      response.infoLog += logLine + '\n';
+    });
+  };
+
+  const originalStreams = JSON.parse(JSON.stringify(streams));
+  logStreams('Original Stream Order', originalStreams);
 
   const sortStreams = (sortType) => {
     const allItems = sortType.inputs.split(',').map((x) => x.trim()).filter((x) => x);
@@ -146,13 +157,15 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     }
   }
 
+  logStreams('Sorted Stream Order (based on available matches)', streams);
+
   const reordered = JSON.stringify(streams);
-  if (reordered !== originalStreams) {
+  if (reordered !== JSON.stringify(originalStreams)) {
     response.filterReason = 'Streams do not match preferred order';
-    response.processFile = true; // Output 2
+    response.processFile = true;
   } else {
     response.filterReason = 'Streams already in preferred order';
-    response.processFile = false; // Output 1
+    response.processFile = false;
   }
 
   return response;
