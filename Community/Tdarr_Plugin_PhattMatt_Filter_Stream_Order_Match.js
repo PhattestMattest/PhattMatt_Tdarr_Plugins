@@ -1,7 +1,7 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Filter: Stream Order Match (Ignore Missing)',
+  Name: 'Phatt Matt: Stream Order Match V1.1',
   Type: 'Video',
   Operation: 'Filter',
   Description: `Checks if stream order matches user-defined preferences (languages, codecs, channels, streamTypes), ignoring values that are not present in the file.`,
