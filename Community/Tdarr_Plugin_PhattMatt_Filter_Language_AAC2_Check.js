@@ -1,7 +1,7 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Language_AAC2_Check',
   Stage: 'Pre-processing',
-  Name: 'Filter: Language Must Be AAC 2.0',
+  Name: 'Phatt Matt: Check for AAC 2.0 V1.0',
   Type: 'Audio',
   Operation: 'Filter',
   Description: 'Checks if audio streams for selected languages are AAC 2.0 (if present).',
