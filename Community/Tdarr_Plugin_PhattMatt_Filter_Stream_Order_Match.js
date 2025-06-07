@@ -62,10 +62,8 @@ const plugin = ({ ffprobeData, inputs, file }) => {
     return { index, type, codec, channels, language, info };
   });
 
-  // Log all stream info flat
   const allStreamSummary = streamInfoList.map(s => s.info).join(' ');
 
-  // Check grouping: video > audio > subtitle
   const typeOrder = streams.map(s => s.codec_type);
   const firstAudio = typeOrder.findIndex(t => t === 'audio');
   const firstSubtitle = typeOrder.findIndex(t => t === 'subtitle');
@@ -87,7 +85,6 @@ const plugin = ({ ffprobeData, inputs, file }) => {
     };
   }
 
-  // Group and sort expected audio
   const grouped = {};
   preferredLangs.forEach(lang => {
     grouped[lang] = [];
@@ -112,4 +109,25 @@ const plugin = ({ ffprobeData, inputs, file }) => {
   const actualAudioOrder = audioStreams.map(s => `${s.language}-${s.channels}`);
   const expectedAudioOrderStrings = expectedAudioOrder.map(s => `${s.language}-${s.channels}`);
 
-  const audioOrderMismatch = actualAudioOrder.join('|') !== expe
+  const audioOrderMismatch = actualAudioOrder.join('|') !== expectedAudioOrderStrings.join('|');
+
+  if (audioOrderMismatch) {
+    return {
+      processFile: false,
+      preset: '',
+      container: '',
+      infoLog: `FAIL: Audio stream order mismatch. Actual: [${actualAudioOrder.join(' ')}] Expected: [${expectedAudioOrderStrings.join(' ')}] | ${allStreamSummary}`,
+      output: 2,
+    };
+  }
+
+  return {
+    processFile: false,
+    preset: '',
+    container: '',
+    infoLog: `PASS: Stream order valid. ${allStreamSummary}`,
+    output: 1,
+  };
+};
+
+module.exports = { plugin, details };
