@@ -1,25 +1,26 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.7',
+  Name: 'Phatt Matt: Stream Order Match V1.8',
   Type: 'Filter',
   Operation: 'Filter',
   Description:
-    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Tdarr V2 compatible. Includes input fallback and logging.',
-  Version: '1.7',
-  Tags: 'pre-processing,debug,ffprobe,filter',
+    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Includes stream log summary. Tdarr V2 compatible.',
+  Version: '1.8',
+  Tags: 'pre-processing,filter,ffprobe,audio order,language order',
   Inputs: [
     {
       name: 'preferredAudioLanguages',
       type: 'string',
       defaultValue: 'eng,jpn,chi',
-      inputText: 'Preferred Audio Languages (comma-separated, e.g., eng,jpn,chi)',
+      inputText: 'Preferred Audio Languages (comma-separated)',
+      tooltip: 'Enter languages in preferred order. Example: eng,jpn,chi',
     },
   ],
 });
 
 const plugin = (file, librarySettings, inputs, otherArguments) => {
-  const lib = require('../methods/lib')(); 
+  const lib = require('../methods/lib')();
   inputs = lib.loadDefaultValues(inputs, details);
 
   const ffprobeData = file.ffProbeData;
@@ -60,14 +61,14 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     const codec = stream.codec_name || '';
     const channels = stream.channels || 0;
     const language = (stream.tags && stream.tags.language) ? stream.tags.language.toLowerCase() : 'und';
-    const info = `[${index} type=${type} codec=${codec} channels=${channels} language=${language}]`;
+    const label = `${type}/${codec} lang=${language}${type === 'audio' ? ` ch=${channels}` : ''}`;
     if (type === 'video') videoStreams.push({ index, type, codec, channels, language });
     else if (type === 'audio') audioStreams.push({ index, type, codec, channels, language });
     else if (type === 'subtitle') subtitleStreams.push({ index, type, codec, channels, language });
-    return { index, type, codec, channels, language, info };
+    return { index, type, codec, channels, language, label };
   });
 
-  const allStreamSummary = streamInfoList.map(s => s.info).join(' ');
+  const streamSummary = streamInfoList.map(s => `[${s.index} ${s.label}]`).join(' ');
 
   const typeOrder = streams.map(s => s.codec_type);
   const firstAudio = typeOrder.findIndex(t => t === 'audio');
@@ -85,7 +86,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       processFile: false,
       preset: '',
       container: '',
-      infoLog: `FAIL: Stream group order invalid. Found order: ${typeOrder.join(',')} | ${allStreamSummary}`,
+      infoLog: `FAIL: Stream group order invalid. Found order: ${typeOrder.join(',')} | ${streamSummary}`,
       output: 2,
     };
   }
@@ -121,7 +122,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       processFile: false,
       preset: '',
       container: '',
-      infoLog: `FAIL: Audio stream order mismatch. Actual: [${actualAudioOrder.join(' ')}] Expected: [${expectedAudioOrderStrings.join(' ')}] | ${allStreamSummary}`,
+      infoLog: `FAIL: Audio stream order mismatch. Actual: [${actualAudioOrder.join(' ')}] Expected: [${expectedAudioOrderStrings.join(' ')}] | ${streamSummary}`,
       output: 2,
     };
   }
@@ -130,7 +131,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     processFile: false,
     preset: '',
     container: '',
-    infoLog: `PASS: Stream order valid. ${allStreamSummary}`,
+    infoLog: `PASS: Stream order valid. ${streamSummary}`,
     output: 1,
   };
 };
