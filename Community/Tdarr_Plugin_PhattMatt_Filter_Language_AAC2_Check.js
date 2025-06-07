@@ -1,12 +1,12 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Language_AAC2_Check',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Check for AAC 2.0 V1.1',
+  Name: 'Phatt Matt: Check for AAC 2.0 V1.2',
   Type: 'Audio',
   Operation: 'Filter',
   Description:
-    'If any of the specified languages are present, at least one AAC 2.0 stream must exist for each of them. If none of the specified languages are found, the file is allowed to pass.',
-  Version: '1.1',
+    'If any of the specified languages are present, at least one AAC 2.0 stream must exist for each of them. If none of the specified languages are found, the file is allowed to pass. Logs all audio streams.',
+  Version: '1.2',
   Tags: 'filter,audio,language,aac,channels',
   Inputs: [
     {
@@ -55,22 +55,28 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     return response;
   }
 
+  // Log all audio streams
+  response.infoLog += 'Audio streams found:\n';
+  audioStreams.forEach((stream) => {
+    const lang = (stream.tags && stream.tags.language) ? stream.tags.language.toLowerCase() : 'und';
+    const codec = stream.codec_name || 'unknown';
+    const channels = stream.channels || '?';
+    response.infoLog += `  Stream ${stream.index}: lang=${lang}, codec=${codec}, channels=${channels}\n`;
+  });
+
   let failedLanguageCheck = false;
 
   for (const lang of languages) {
-    // Find all streams in this language
     const matchingStreams = audioStreams.filter((stream) => {
       const streamLang = (stream.tags && stream.tags.language) ? stream.tags.language.toLowerCase() : '';
       return streamLang === lang;
     });
 
-    // If none found, skip
     if (matchingStreams.length === 0) {
       response.infoLog += `Language '${lang}' not present. Skipping.\n`;
       continue;
     }
 
-    // Check if at least one stream is AAC 2.0
     const hasAAC2 = matchingStreams.some((stream) => {
       const codec = stream.codec_name ? stream.codec_name.toLowerCase() : '';
       const channels = stream.channels || 0;
