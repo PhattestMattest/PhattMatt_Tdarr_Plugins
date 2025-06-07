@@ -1,7 +1,7 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Unwanted_Video_Codecs',
   Stage: 'Pre-processing',
-  Name: 'Filter Out Unwanted Video Codecs',
+  Name: 'Phatt Matt: Filter Out Unwanted Video Codecs V1.1',
   Type: 'Video',
   Operation: 'Filter',
   Description:
