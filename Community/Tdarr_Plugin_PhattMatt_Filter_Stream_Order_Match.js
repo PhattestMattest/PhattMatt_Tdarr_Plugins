@@ -1,12 +1,12 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.4',
+  Name: 'Phatt Matt: Stream Order Match V1.5',
   Type: 'Filter',
   Operation: 'Filter',
   Description:
     'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Routes to Output 1 if correct, Output 2 if not.',
-  Version: '1.4',
+  Version: '1.5',
   Tags: 'pre-processing,filter,stream order,audio,language,channel',
   Inputs: [
     {
@@ -18,7 +18,7 @@ const details = () => ({
   ],
 });
 
-const run = ({ ffprobeData, inputs }) => {
+const plugin = ({ ffprobeData, inputs }) => {
   if (!ffprobeData || !ffprobeData.streams) {
     return {
       processFile: false,
@@ -51,11 +51,10 @@ const run = ({ ffprobeData, inputs }) => {
     return { index, type, codec, channels, language };
   });
 
-  // Verify overall stream grouping order: video > audio > subtitles
+  // Check stream type section order: video -> audio -> subtitle
   const typeOrder = streams.map(s => s.codec_type);
   const firstAudio = typeOrder.findIndex(t => t === 'audio');
   const firstSubtitle = typeOrder.findIndex(t => t === 'subtitle');
-
   const lastVideo = typeOrder.lastIndexOf('video');
   const lastAudio = typeOrder.lastIndexOf('audio');
 
@@ -74,7 +73,7 @@ const run = ({ ffprobeData, inputs }) => {
     };
   }
 
-  // Construct expected audio order
+  // Build expected audio order based on language priority and channel count
   const grouped = {};
   preferredLangs.forEach(lang => {
     grouped[lang] = [];
@@ -89,16 +88,15 @@ const run = ({ ffprobeData, inputs }) => {
     }
   }
 
-  // Sort each language group by descending channels
+  // Sort per-language group by descending channels
   const expectedAudioOrder = [];
   for (const lang of preferredLangs) {
     const sorted = grouped[lang].sort((a, b) => b.channels - a.channels);
     expectedAudioOrder.push(...sorted);
   }
-  // Append und/other tracks
   expectedAudioOrder.push(...undOrOther);
 
-  // Compare actual audio order vs expected
+  // Compare actual vs expected audio order
   const actualAudioOrder = audioStreams.map(s => `${s.language}-${s.channels}`);
   const expectedAudioOrderStrings = expectedAudioOrder.map(s => `${s.language}-${s.channels}`);
 
@@ -125,4 +123,4 @@ const run = ({ ffprobeData, inputs }) => {
   };
 };
 
-module.exports = { details, run };
+module.exports = { plugin, details };
