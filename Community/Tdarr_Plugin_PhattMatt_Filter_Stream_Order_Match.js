@@ -1,11 +1,11 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.2',
+  Name: 'Phatt Matt: Stream Order Match V1.3',
   Type: 'Video',
   Operation: 'Filter',
-  Description: `Checks if stream order matches user-defined preferences (languages, codecs, channels, streamTypes), ignoring values not present in the file. Logs stream info before and after sorting for debugging.`,
-  Version: '1.2',
+  Description: `Checks if stream order matches user-defined preferences (languages, codecs, channels, streamTypes), ignoring values not present in the file. Logs stream info for debugging without HTML or line breaks.`,
+  Version: '1.3',
   Tags: 'filter',
   Inputs: [
     {
@@ -15,7 +15,7 @@ const details = () => ({
       inputUI: {
         type: 'text',
       },
-      tooltip: `Order in which to sort stream properties. Last one takes precedence.\nExample:\ncodecs,channels,languages,streamTypes`,
+      tooltip: `Order in which to sort stream properties. Last one takes precedence. Example: codecs,channels,languages,streamTypes`,
     },
     {
       name: 'languages',
@@ -24,7 +24,7 @@ const details = () => ({
       inputUI: {
         type: 'text',
       },
-      tooltip: `Comma-separated language priority list. Leave blank to disable.\nExample:\neng,jpn`,
+      tooltip: `Comma-separated language priority list. Leave blank to disable. Example: eng,jpn`,
     },
     {
       name: 'channels',
@@ -33,7 +33,7 @@ const details = () => ({
       inputUI: {
         type: 'text',
       },
-      tooltip: `Comma-separated audio channel order.\nExample:\n7.1,5.1,2,1`,
+      tooltip: `Comma-separated audio channel order. Example: 7.1,5.1,2,1`,
     },
     {
       name: 'codecs',
@@ -42,7 +42,7 @@ const details = () => ({
       inputUI: {
         type: 'text',
       },
-      tooltip: `Comma-separated codec order.\nExample:\naac,ac3`,
+      tooltip: `Comma-separated codec order. Example: aac,ac3`,
     },
     {
       name: 'streamTypes',
@@ -51,7 +51,7 @@ const details = () => ({
       inputUI: {
         type: 'text',
       },
-      tooltip: `Comma-separated stream type order.\nExample:\nvideo,audio,subtitle`,
+      tooltip: `Comma-separated stream type order. Example: video,audio,subtitle`,
     },
   ],
 });
@@ -78,18 +78,18 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   let { streams } = JSON.parse(JSON.stringify(file.ffProbeData));
   streams.forEach((s, i) => s.typeIndex = i);
 
-  const logStreams = (title, streamList) => {
-    response.infoLog += `\n[${title}]\n`;
+  const formatStreamLog = (label, streamList) => {
+    let result = label + ':';
     streamList.forEach((s, idx) => {
       const lang = s.tags?.language || '';
       const chan = s.channels || '';
-      const logLine = `Index ${idx}: type=${s.codec_type} codec=${s.codec_name} channels=${chan} language=${lang}`;
-      response.infoLog += logLine + '\n';
+      result += ` [${idx} type=${s.codec_type} codec=${s.codec_name} channels=${chan} language=${lang}]`;
     });
+    return result;
   };
 
-  const originalStreams = JSON.parse(JSON.stringify(streams));
-  logStreams('Original Stream Order', originalStreams);
+  const originalStreams = JSON.stringify(streams);
+  response.infoLog += formatStreamLog('OriginalStreamOrder', streams);
 
   const sortStreams = (sortType) => {
     const allItems = sortType.inputs.split(',').map((x) => x.trim()).filter((x) => x);
@@ -157,10 +157,10 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     }
   }
 
-  logStreams('Sorted Stream Order (based on available matches)', streams);
+  response.infoLog += ' ' + formatStreamLog('SortedStreamOrder', streams);
 
   const reordered = JSON.stringify(streams);
-  if (reordered !== JSON.stringify(originalStreams)) {
+  if (reordered !== originalStreams) {
     response.filterReason = 'Streams do not match preferred order';
     response.processFile = true;
   } else {
