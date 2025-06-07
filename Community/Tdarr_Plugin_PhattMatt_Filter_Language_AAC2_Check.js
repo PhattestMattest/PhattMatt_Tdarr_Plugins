@@ -1,11 +1,12 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Language_AAC2_Check',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Check for AAC 2.0 V1.0',
+  Name: 'Phatt Matt: Check for AAC 2.0 V1.1',
   Type: 'Audio',
   Operation: 'Filter',
-  Description: 'Checks if audio streams for selected languages are AAC 2.0 (if present).',
-  Version: '1.0',
+  Description:
+    'If any of the specified languages are present, at least one AAC 2.0 stream must exist for each of them. If none of the specified languages are found, the file is allowed to pass.',
+  Version: '1.1',
   Tags: 'filter,audio,language,aac,channels',
   Inputs: [
     {
@@ -54,38 +55,42 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     return response;
   }
 
-  let hasTargetLanguages = false;
-  let hasInvalidStreams = false;
+  let failedLanguageCheck = false;
 
-  audioStreams.forEach((stream) => {
-    const lang = (stream.tags && stream.tags.language) ? stream.tags.language.toLowerCase() : '';
-    const codec = stream.codec_name ? stream.codec_name.toLowerCase() : '';
-    const channels = stream.channels || 0;
+  for (const lang of languages) {
+    // Find all streams in this language
+    const matchingStreams = audioStreams.filter((stream) => {
+      const streamLang = (stream.tags && stream.tags.language) ? stream.tags.language.toLowerCase() : '';
+      return streamLang === lang;
+    });
 
-    if (languages.includes(lang)) {
-      hasTargetLanguages = true;
-
-      const isAAC2 = codec === 'aac' && channels === 2;
-      response.infoLog += `Stream ${stream.index}: lang=${lang}, codec=${codec}, channels=${channels}, isAAC2=${isAAC2}\n`;
-
-      if (!isAAC2) {
-        hasInvalidStreams = true;
-      }
+    // If none found, skip
+    if (matchingStreams.length === 0) {
+      response.infoLog += `Language '${lang}' not present. Skipping.\n`;
+      continue;
     }
-  });
 
-  if (!hasTargetLanguages) {
-    response.infoLog += 'No matching languages present in the file. Treating file as passing.\n';
-    response.processFile = true;
-    return response;
+    // Check if at least one stream is AAC 2.0
+    const hasAAC2 = matchingStreams.some((stream) => {
+      const codec = stream.codec_name ? stream.codec_name.toLowerCase() : '';
+      const channels = stream.channels || 0;
+      return codec === 'aac' && channels === 2;
+    });
+
+    if (!hasAAC2) {
+      response.infoLog += `Language '${lang}' is present but has no AAC 2.0 stream. Failing.\n`;
+      failedLanguageCheck = true;
+    } else {
+      response.infoLog += `Language '${lang}' is present and has at least one AAC 2.0 stream.\n`;
+    }
   }
 
-  if (hasInvalidStreams) {
-    response.infoLog += 'At least one stream in the selected languages is not AAC 2.0. Breaking out of plugin stack.\n';
+  if (failedLanguageCheck) {
     response.processFile = false;
+    response.infoLog += 'One or more specified languages lacked AAC 2.0. Breaking out of plugin stack.\n';
   } else {
-    response.infoLog += 'All matching language streams are AAC 2.0. Passing file to next plugin.\n';
     response.processFile = true;
+    response.infoLog += 'All present specified languages have at least one AAC 2.0 stream. Passing file.\n';
   }
 
   return response;
