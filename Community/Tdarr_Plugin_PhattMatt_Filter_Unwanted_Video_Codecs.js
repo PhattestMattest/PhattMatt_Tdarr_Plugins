@@ -6,11 +6,11 @@ const details = () => ({
   Operation: 'Filter',
   Description:
     'Skips files if any video stream contains a codec from the unwanted list. Otherwise, processes the file.',
-  Version: '1.0',
+  Version: '1.1',
   Tags: 'filter',
   Inputs: [
     {
-      name: 'unwantedStreams',
+      name: 'unwantedVideoCodecs',
       type: 'string',
       defaultValue: '',
       inputUI: {
@@ -44,7 +44,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     (stream.codec_name || '').toLowerCase()
   );
 
-  const unwantedList = inputs.unwantedStreams
+  const unwantedList = inputs.unwantedVideoCodecs
     .split(',')
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean);
