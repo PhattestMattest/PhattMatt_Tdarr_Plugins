@@ -1,175 +1,128 @@
 const details = () => ({
   id: 'Tdarr_Plugin_PhattMatt_Filter_Stream_Order_Match',
   Stage: 'Pre-processing',
-  Name: 'Phatt Matt: Stream Order Match V1.3',
-  Type: 'Video',
+  Name: 'Phatt Matt: Stream Order Match V1.4',
+  Type: 'Filter',
   Operation: 'Filter',
-  Description: `Checks if stream order matches user-defined preferences (languages, codecs, channels, streamTypes), ignoring values not present in the file. Logs stream info for debugging without HTML or line breaks.`,
-  Version: '1.3',
-  Tags: 'filter',
+  Description:
+    'Checks that streams are ordered as video > audio (in specified language/channel order) > subtitles. Routes to Output 1 if correct, Output 2 if not.',
+  Version: '1.4',
+  Tags: 'pre-processing,filter,stream order,audio,language,channel',
   Inputs: [
     {
-      name: 'processOrder',
+      name: 'preferredAudioLanguages',
       type: 'string',
-      defaultValue: 'codecs,channels,languages,streamTypes',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Order in which to sort stream properties. Last one takes precedence. Example: codecs,channels,languages,streamTypes`,
-    },
-    {
-      name: 'languages',
-      type: 'string',
-      defaultValue: '',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Comma-separated language priority list. Leave blank to disable. Example: eng,jpn`,
-    },
-    {
-      name: 'channels',
-      type: 'string',
-      defaultValue: '7.1,5.1,2,1',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Comma-separated audio channel order. Example: 7.1,5.1,2,1`,
-    },
-    {
-      name: 'codecs',
-      type: 'string',
-      defaultValue: '',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Comma-separated codec order. Example: aac,ac3`,
-    },
-    {
-      name: 'streamTypes',
-      type: 'string',
-      defaultValue: 'video,audio,subtitle',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Comma-separated stream type order. Example: video,audio,subtitle`,
+      defaultValue: 'eng,jpn,chi',
+      inputText: 'Preferred Audio Languages (comma-separated, e.g., eng,jpn,chi)',
     },
   ],
 });
 
-const plugin = (file, librarySettings, inputs, otherArguments) => {
-  const lib = require('../methods/lib')();
-  inputs = lib.loadDefaultValues(inputs, details);
+const run = ({ ffprobeData, inputs }) => {
+  if (!ffprobeData || !ffprobeData.streams) {
+    return {
+      processFile: false,
+      preset: '',
+      container: '',
+      infoLog: 'No ffprobe data available',
+      output: 2,
+    };
+  }
 
-  const response = {
+  const preferredLangs = inputs.preferredAudioLanguages
+    .split(',')
+    .map(l => l.trim().toLowerCase())
+    .filter(l => l);
+
+  const streams = ffprobeData.streams;
+
+  const videoStreams = [];
+  const audioStreams = [];
+  const subtitleStreams = [];
+
+  const streamInfoList = streams.map((stream, index) => {
+    const type = stream.codec_type || '';
+    const codec = stream.codec_name || '';
+    const channels = stream.channels || 0;
+    const language = (stream.tags && stream.tags.language) ? stream.tags.language.toLowerCase() : 'und';
+    if (type === 'video') videoStreams.push({ index, type, codec, channels, language });
+    else if (type === 'audio') audioStreams.push({ index, type, codec, channels, language });
+    else if (type === 'subtitle') subtitleStreams.push({ index, type, codec, channels, language });
+    return { index, type, codec, channels, language };
+  });
+
+  // Verify overall stream grouping order: video > audio > subtitles
+  const typeOrder = streams.map(s => s.codec_type);
+  const firstAudio = typeOrder.findIndex(t => t === 'audio');
+  const firstSubtitle = typeOrder.findIndex(t => t === 'subtitle');
+
+  const lastVideo = typeOrder.lastIndexOf('video');
+  const lastAudio = typeOrder.lastIndexOf('audio');
+
+  const hasBadOrder =
+    (firstAudio !== -1 && firstAudio < lastVideo) ||
+    (firstSubtitle !== -1 && firstSubtitle < lastAudio) ||
+    (firstSubtitle !== -1 && firstSubtitle < lastVideo);
+
+  if (hasBadOrder) {
+    return {
+      processFile: false,
+      preset: '',
+      container: '',
+      infoLog: `Stream grouping invalid. Order must be video > audio > subtitle. Found order: ${typeOrder.join(',')}`,
+      output: 2,
+    };
+  }
+
+  // Construct expected audio order
+  const grouped = {};
+  preferredLangs.forEach(lang => {
+    grouped[lang] = [];
+  });
+  const undOrOther = [];
+
+  for (const stream of audioStreams) {
+    if (preferredLangs.includes(stream.language)) {
+      grouped[stream.language].push(stream);
+    } else {
+      undOrOther.push(stream);
+    }
+  }
+
+  // Sort each language group by descending channels
+  const expectedAudioOrder = [];
+  for (const lang of preferredLangs) {
+    const sorted = grouped[lang].sort((a, b) => b.channels - a.channels);
+    expectedAudioOrder.push(...sorted);
+  }
+  // Append und/other tracks
+  expectedAudioOrder.push(...undOrOther);
+
+  // Compare actual audio order vs expected
+  const actualAudioOrder = audioStreams.map(s => `${s.language}-${s.channels}`);
+  const expectedAudioOrderStrings = expectedAudioOrder.map(s => `${s.language}-${s.channels}`);
+
+  const audioOrderMismatch = actualAudioOrder.join('|') !== expectedAudioOrderStrings.join('|');
+
+  if (audioOrderMismatch) {
+    return {
+      processFile: false,
+      preset: '',
+      container: '',
+      infoLog: `Audio stream order invalid. Actual: [${actualAudioOrder.join(' ')}] Expected: [${expectedAudioOrderStrings.join(' ')}]`,
+      output: 2,
+    };
+  }
+
+  // All checks passed
+  const summary = streamInfoList.map(s => `[${s.index} type=${s.type} codec=${s.codec} channels=${s.channels} language=${s.language}]`).join(' ');
+  return {
     processFile: false,
     preset: '',
-    container: `.${file.container}`,
-    FFmpegMode: false,
-    handBrakeMode: false,
-    infoLog: '',
-    filterReason: '',
+    container: '',
+    infoLog: `Stream order valid. ${summary}`,
+    output: 1,
   };
-
-  if (!Array.isArray(file.ffProbeData.streams)) {
-    response.filterReason = 'No stream info available';
-    return response;
-  }
-
-  let { streams } = JSON.parse(JSON.stringify(file.ffProbeData));
-  streams.forEach((s, i) => s.typeIndex = i);
-
-  const formatStreamLog = (label, streamList) => {
-    let result = label + ':';
-    streamList.forEach((s, idx) => {
-      const lang = s.tags?.language || '';
-      const chan = s.channels || '';
-      result += ` [${idx} type=${s.codec_type} codec=${s.codec_name} channels=${chan} language=${lang}]`;
-    });
-    return result;
-  };
-
-  const originalStreams = JSON.stringify(streams);
-  response.infoLog += formatStreamLog('OriginalStreamOrder', streams);
-
-  const sortStreams = (sortType) => {
-    const allItems = sortType.inputs.split(',').map((x) => x.trim()).filter((x) => x);
-    const existingItems = [];
-
-    for (const stream of streams) {
-      const value = String(sortType.getValue(stream));
-      if (allItems.includes(value) && !existingItems.includes(value)) {
-        existingItems.push(value);
-      }
-    }
-
-    const items = existingItems.reverse();
-
-    for (const item of items) {
-      const matched = [];
-      for (let j = 0; j < streams.length; j++) {
-        const value = String(sortType.getValue(streams[j]));
-        if (value === item) {
-          if (
-            streams[j].codec_long_name?.includes('image') ||
-            streams[j].codec_name?.includes('png')
-          ) {
-            continue;
-          }
-          matched.push(streams[j]);
-          streams.splice(j, 1);
-          j--;
-        }
-      }
-      streams = matched.concat(streams);
-    }
-  };
-
-  const {
-    processOrder, languages, channels, codecs, streamTypes,
-  } = inputs;
-
-  const sortTypes = {
-    languages: {
-      getValue: (s) => s.tags?.language || '',
-      inputs: languages,
-    },
-    codecs: {
-      getValue: (s) => s.codec_name || '',
-      inputs: codecs,
-    },
-    channels: {
-      getValue: (s) => {
-        const map = { 8: '7.1', 6: '5.1', 2: '2', 1: '1' };
-        return map[s.channels] || '';
-      },
-      inputs: channels,
-    },
-    streamTypes: {
-      getValue: (s) => s.codec_type || '',
-      inputs: streamTypes,
-    },
-  };
-
-  const orderList = processOrder.split(',').map((x) => x.trim());
-  for (const key of orderList) {
-    if (sortTypes[key] && sortTypes[key].inputs) {
-      sortStreams(sortTypes[key]);
-    }
-  }
-
-  response.infoLog += ' ' + formatStreamLog('SortedStreamOrder', streams);
-
-  const reordered = JSON.stringify(streams);
-  if (reordered !== originalStreams) {
-    response.filterReason = 'Streams do not match preferred order';
-    response.processFile = true;
-  } else {
-    response.filterReason = 'Streams already in preferred order';
-    response.processFile = false;
-  }
-
-  return response;
 };
 
-module.exports.details = details;
-module.exports.plugin = plugin;
+module.exports = { details, run };
